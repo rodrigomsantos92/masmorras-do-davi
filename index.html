@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Masmorras do Davi</title>
+<style>
+  :root { --ui: #1b1230; --ui2: #2c2250; --txt: #f4efff; --ouro: #ffd34d; --vida: #4ade80; --dano: #ff5c5c; --roxo: #a06bff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ui); color: var(--txt); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; touch-action: none; }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  button { font: inherit; font-weight: 700; padding: 10px 16px; border: 0; border-radius: 10px; background: var(--ouro); color: #2a1d00; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.sec { background: var(--ui2); color: var(--txt); border: 1px solid #5a4a8a; }
+
+  /* telas (overlays) */
+  .tela { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+  .tela .painel { background: rgba(27,18,48,.94); border: 1px solid #5a4a8a; border-radius: 16px; padding: 20px; width: min(520px, 100%); max-height: 92vh; overflow: auto; }
+  #tela-titulo .painel { background: rgba(27,18,48,.78); }
+  h1 { margin: 0 0 4px; font-size: 30px; color: var(--ouro); }
+  h2 { margin: 0 0 8px; color: var(--ouro); }
+  .sub { opacity: .8; margin: 0 0 14px; }
+  .fala { font-style: italic; opacity: .9; margin: 0 0 10px; }
+  .lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--ui2); border-radius: 10px; padding: 10px 12px; }
+  .item.sel { outline: 2px solid var(--ouro); }
+  .item.bloq { opacity: .6; }
+  .item small { opacity: .8; }
+  .tag { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 6px; background: var(--ouro); color: #2a1d00; white-space: nowrap; }
+  .tag.bloq { background: #555; color: #ddd; }
+  .acoes { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .controles { font-size: 13px; opacity: .75; margin-top: 12px; line-height: 1.5; }
+
+  /* HUD */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); }
+  .topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .barra { width: min(240px, 48vw); height: 16px; background: rgba(0,0,0,.5); border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,.25); }
+  .barra > div { height: 100%; background: var(--vida); transition: width .15s; }
+  #chefeBar { background: var(--dano); }
+  .info { font-size: 13px; font-weight: 700; text-shadow: 0 1px 2px #000; margin-top: 3px; }
+  .dinheiro { font-weight: 800; color: var(--ouro); text-shadow: 0 1px 2px #000; font-size: 18px; text-align: right; }
+  #fase { text-align: center; font-weight: 800; text-shadow: 0 1px 3px #000; margin-top: 8px; }
+  #chefeBox { margin: 8px auto 0; width: min(420px, 90vw); }
+  #chefeBox .barra { width: 100%; height: 18px; }
+  #chefeNome { text-align: center; font-weight: 800; text-shadow: 0 1px 3px #000; margin-bottom: 4px; }
+  .msg { position: fixed; top: 32%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.65); padding: 10px 16px; border-radius: 10px; font-weight: 800; text-align: center; max-width: 90vw; }
+  .msg.aviso { background: rgba(200,30,30,.85); }
+  .msg.chefe { background: rgba(120,40,200,.85); }
+  #numeros { position: fixed; inset: 0; pointer-events: none; }
+  .num { position: absolute; left: 0; top: 0; font-weight: 900; font-size: 18px; text-shadow: 0 1px 3px #000; white-space: nowrap; margin-left: -12px; }
+  .num.ataque { color: #fff; }
+  .num.dano { color: var(--dano); }
+  .num.especial { color: #ff9d3b; font-size: 24px; }
+  .num.cura { color: var(--vida); }
+  #dica { position: fixed; bottom: 26%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); padding: 8px 14px; border-radius: 10px; font-weight: 700; pointer-events: none; }
+  #btnPronto { position: fixed; bottom: 28%; left: 50%; transform: translateX(-50%); pointer-events: auto; font-size: 20px; padding: 14px 28px; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+  body.tremer canvas { animation: tremer .25s; }
+  @keyframes tremer { 25% { transform: translate(4px, -3px); } 50% { transform: translate(-4px, 3px); } 75% { transform: translate(3px, 2px); } }
+
+  /* controles de toque */
+  #touch { position: fixed; inset: 0; pointer-events: none; z-index: 15; }
+  #joy { position: fixed; left: max(20px, env(safe-area-inset-left)); bottom: max(20px, env(safe-area-inset-bottom)); width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.3); pointer-events: auto; touch-action: none; }
+  #knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.55); }
+  .botoes { position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: auto; }
+  .botoes button { width: 74px; height: 74px; border-radius: 50%; font-size: 13px; line-height: 1.1; box-shadow: 0 3px 10px rgba(0,0,0,.4); }
+  #bAtacar { width: 90px; height: 90px; font-size: 15px; }
+  #bInteragir { width: auto; height: auto; border-radius: 12px; padding: 14px 18px; font-size: 15px; }
+  @media (hover: hover) and (pointer: fine) { #joy, .botoes button:not(#bInteragir) { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- Tela inicial -->
+<div class="tela" id="tela-titulo">
+  <div class="painel">
+    <h1>Masmorras do Davi</h1>
+    <p class="sub">Dinheiro: <b id="tituloDinheiro">0</b></p>
+    <div class="lista" id="classes"></div>
+    <div class="acoes">
+      <button onclick="Game.jogar()">Jogar</button>
+      <button class="sec" onclick="if(confirm('Apagar todo o progresso?')) Game.resetar()">Recomeçar do zero</button>
+    </div>
+    <div class="controles">
+      <b>Computador:</b> WASD ou setas para andar · Espaço ou clique ataca · F atira flecha (Arqueiro) · Q usa poção · E interage<br>
+      <b>Celular:</b> joystick à esquerda, botões à direita
+    </div>
+  </div>
+</div>
+
+<!-- Loja do ferreiro -->
+<div class="tela" id="tela-loja" hidden><div class="painel" id="loja"></div></div>
+
+<!-- Seleção de masmorras -->
+<div class="tela" id="tela-selecao" hidden>
+  <div class="painel">
+    <h2>Portal das Masmorras</h2>
+    <div class="lista" id="masmorras"></div>
+    <button class="sec" onclick="Game.estado='hub'; Game.mostrar('nenhuma')">Voltar</button>
+  </div>
+</div>
+
+<!-- Fim: vitória ou derrota -->
+<div class="tela" id="tela-fim" hidden>
+  <div class="painel">
+    <h2 id="fimTitulo"></h2>
+    <div class="lista" id="fimTexto"></div>
+    <div class="acoes">
+      <button id="btnTentar" onclick="Game.tentarNovamente()">Tente novamente</button>
+      <button class="sec" onclick="Game.voltarCentro()">Voltar pro centro</button>
+    </div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <div class="topo">
+    <div>
+      <div class="barra"><div id="hpBar"></div></div>
+      <div class="info"><span id="hpTxt"></span> · Poções: <span id="pocoes">0</span></div>
+    </div>
+    <div class="dinheiro">$ <span id="dinheiro">0</span></div>
+  </div>
+  <div id="fase"></div>
+  <div id="chefeBox" hidden><div id="chefeNome"></div><div class="barra"><div id="chefeBar"></div></div></div>
+  <div class="msg" id="msg" hidden></div>
+  <div id="numeros"></div>
+  <div id="dica" hidden></div>
+  <button id="btnPronto" onclick="Game.pronto()" hidden>Pronto!</button>
+</div>
+
+<!-- Controles de toque -->
+<div id="touch" hidden>
+  <div id="joy"><div id="knob"></div></div>
+  <div class="botoes">
+    <button id="bInteragir" hidden>Interagir</button>
+    <button id="bPocao" hidden>Poção</button>
+    <button id="bFlecha" hidden>Flecha</button>
+    <button id="bAtacar" hidden>Atacar</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="src/config.js"></script>
+<script src="src/save.js"></script>
+<script src="src/scene.js"></script>
+<script src="src/player.js"></script>
+<script src="src/enemies.js"></script>
+<script src="src/hud.js"></script>
+<script src="src/shop.js"></script>
+<script src="src/hub.js"></script>
+<script src="src/dungeon.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
